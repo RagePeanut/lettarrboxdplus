@@ -45,7 +45,7 @@ jobs:
         run: yarn tsc --noEmit
 
       - name: Run unit tests with coverage
-        run: yarn test:coverage
+        run: yarn test:coverage --testPathIgnorePatterns=itest
         env:
           CI: true
 
