@@ -5,6 +5,7 @@ A fork of [Lettarrboxd](https://github.com/ryanpag3/lettarrboxd) with **bidirect
 ## What's new vs Lettarrboxd
 
 - **Sync mode** (`SYNC_MODE=sync`): makes your Letterboxd list the single source of truth. Movies added to the list are added to Radarr; movies removed from the list are removed from Radarr (with optional file deletion).
+- **Removal protection** (`EXCLUDE_TAGS`): protect movies carrying specific tags from sync removal — essential when running multiple sync instances (e.g. a watchlist that auto-cleans watched films alongside a protected collection).
 - **Tag updating for existing movies** (`UPDATE_EXISTING_TAGS=true`): when a movie already exists in Radarr (e.g. added by another instance), the configured tags are applied to it instead of silently skipping. Required for sync mode to work correctly. Defaults to `false` to preserve original behavior.
 - Fully **backward-compatible**: if you don't set `SYNC_MODE`, the behavior is identical to the original Lettarrboxd.
 
@@ -239,6 +240,7 @@ docker run -d \
 | `DELETE_FILES` | `true` | When removing movies in sync mode, also delete the files from disk |
 | `ADD_IMPORT_EXCLUSION` | `false` | When removing movies in sync mode, add an import exclusion to prevent Radarr from re-adding the movie |
 | `UPDATE_EXISTING_TAGS` | `false` | When `true`, update tags on movies that already exist in Radarr. Required for `SYNC_MODE=sync` to work correctly. When `false` (default), existing movies are silently skipped (original Lettarrboxd behavior) |
+| `EXCLUDE_TAGS` | - | Comma-separated tag names that protect movies from removal in sync mode. A movie carrying any of these tags is never removed, even if it's no longer on the list. Useful when running multiple sync instances (e.g. protect a `collection` from a watchlist instance) |
 
 ## Sync Mode (Bidirectional)
 
@@ -262,6 +264,53 @@ This is ideal for curated collections — add a movie to your Letterboxd list an
 When a movie on the Letterboxd list **already exists** in Radarr (e.g. added by a different instance), the original Lettarrboxd silently skips it without applying tags. When `UPDATE_EXISTING_TAGS=true`, Lettarrboxd+ instead **updates the existing movie's tags** to include the configured tags. This ensures the sync-mode removal logic can correctly identify which movies belong to which list.
 
 > **Note:** `UPDATE_EXISTING_TAGS` defaults to `false` to preserve the original Lettarrboxd behavior. If you use `SYNC_MODE=sync`, you should set `UPDATE_EXISTING_TAGS=true` — otherwise movies that already exist in Radarr won't get the tags needed for sync removal to work.
+
+### Protecting movies from removal (`EXCLUDE_TAGS`)
+
+When running **multiple sync instances**, a movie removed from one list might still belong to another. `EXCLUDE_TAGS` protects movies carrying specific tags from being removed.
+
+**Example — watchlist auto-cleanup + a protected collection:**
+
+Letterboxd automatically removes a film from your watchlist once you log it as watched. Combined with `SYNC_MODE=sync`, this means watched films are automatically cleaned up from Radarr. But you may want to keep some films permanently — put those on a separate "Digital Collection" list (tagged `collection`), and tell the watchlist instance to never remove `collection`-tagged films:
+
+```yaml
+  # Watchlist: adds films you want; removes them once watched (dropped from watchlist)
+  lettarrboxdplus-watchlist:
+    build: ./lettarrboxdplus
+    container_name: lettarrboxdplus-watchlist
+    environment:
+      - LETTERBOXD_URL=https://letterboxd.com/your_username/watchlist/
+      - RADARR_API_URL=http://radarr:7878
+      - RADARR_API_KEY=your_api_key
+      - RADARR_QUALITY_PROFILE=Any
+      - RADARR_TAGS=watchlist
+      - SYNC_MODE=sync
+      - UPDATE_EXISTING_TAGS=true
+      - EXCLUDE_TAGS=collection      # never remove films in the collection
+      - DELETE_FILES=true
+    volumes:
+      - ./data/watchlist:/data
+    restart: unless-stopped
+
+  # Digital Collection: your permanent keepers, tagged `collection`
+  lettarrboxdplus-collection:
+    build: ./lettarrboxdplus
+    container_name: lettarrboxdplus-collection
+    environment:
+      - LETTERBOXD_URL=https://letterboxd.com/your_username/list/digital-collection/
+      - RADARR_API_URL=http://radarr:7878
+      - RADARR_API_KEY=your_api_key
+      - RADARR_QUALITY_PROFILE=Any
+      - RADARR_TAGS=collection
+      - SYNC_MODE=sync
+      - UPDATE_EXISTING_TAGS=true
+      - DELETE_FILES=true
+    volumes:
+      - ./data/collection:/data
+    restart: unless-stopped
+```
+
+Now: watch a film → it drops off your watchlist → removed from Radarr. But if that film is also on your Digital Collection, the `collection` tag protects it from the watchlist instance's removal.
 
 ### Example: Digital Collection
 

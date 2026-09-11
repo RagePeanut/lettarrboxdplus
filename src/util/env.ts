@@ -26,6 +26,10 @@ const envSchema = z.object({
   DELETE_FILES: z.string().default('true').transform(val => val.toLowerCase() === 'true'),
   // When removing movies in sync mode, add an import exclusion to prevent re-adding.
   ADD_IMPORT_EXCLUSION: z.string().default('false').transform(val => val.toLowerCase() === 'true'),
+  // Comma-separated tag names that protect a movie from removal in sync mode.
+  // A movie carrying ANY of these tags in Radarr is never removed, even if it
+  // is no longer on the Letterboxd list. Useful to protect a curated collection.
+  EXCLUDE_TAGS: z.string().optional(),
 }).refine(data => {
   const hasTakeAmount = data.LETTERBOXD_TAKE_AMOUNT !== undefined;
   const hasTakeStrategy = data.LETTERBOXD_TAKE_STRATEGY !== undefined;

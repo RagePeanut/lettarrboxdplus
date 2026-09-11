@@ -4,7 +4,7 @@ require('dotenv').config();
 import env from './util/env';
 import logger from './util/logger';
 import { fetchMoviesFromUrl } from './scraper';
-import { upsertMovies, getAllRequiredTagIds, getMoviesByTagIds, deleteMovie } from './api/radarr';
+import { upsertMovies, getAllRequiredTagIds, getMoviesByTagIds, deleteMovie, getExcludedTagIds } from './api/radarr';
 
 function startScheduledMonitoring(): void {
   const intervalMs = env.CHECK_INTERVAL_MINUTES * 60 * 1000;
@@ -46,12 +46,21 @@ async function syncRemovals(currentTmdbIds: number[]): Promise<void> {
 
     const radarrMovies = await getMoviesByTagIds(tagIds);
     const currentSet = new Set(currentTmdbIds);
+    const excludedTagIds = await getExcludedTagIds();
 
     // Movies in Radarr (with our tags) that are NOT on the current Letterboxd list = removed.
-    const toRemove = radarrMovies.filter(m => !currentSet.has(m.tmdbId));
+    // Movies carrying any excluded tag are protected and never removed.
+    const candidates = radarrMovies.filter(m => !currentSet.has(m.tmdbId));
+    const toRemove = candidates.filter(m => {
+      const isProtected = excludedTagIds.some(tid => m.tags.includes(tid));
+      if (isProtected) {
+        logger.debug(`Skipping removal of "${m.title}" — protected by an excluded tag.`);
+      }
+      return !isProtected;
+    });
 
     if (toRemove.length === 0) {
-      logger.debug('No movies to remove — Radarr and Letterboxd list are in sync.');
+      logger.debug('No movies to remove — Radarr and Letterboxd list are in sync (or remaining candidates are protected).');
       return;
     }
 

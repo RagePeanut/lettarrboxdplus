@@ -138,6 +138,43 @@ export async function getAllRequiredTagIds(): Promise<number[]> {
     return tagIds;
 }
 
+/**
+ * Resolve the tag names in EXCLUDE_TAGS to their Radarr tag IDs.
+ * Only looks up existing tags (does NOT create them): a tag that doesn't exist
+ * in Radarr can't be on any movie, so it's simply ignored.
+ */
+export async function getExcludedTagIds(): Promise<number[]> {
+    if (!env.EXCLUDE_TAGS) return [];
+
+    const names = env.EXCLUDE_TAGS
+        .split(',')
+        .map(t => t.trim().toLowerCase())
+        .filter(t => t.length > 0);
+
+    if (names.length === 0) return [];
+
+    try {
+        const response = await axios.get('/api/v3/tag');
+        const tags = response.data as Array<{ id: number; label: string }>;
+        const ids = tags
+            .filter(tag => names.includes(String(tag.label).toLowerCase()))
+            .map(tag => tag.id);
+
+        const foundLabels = tags
+            .filter(tag => names.includes(String(tag.label).toLowerCase()))
+            .map(tag => String(tag.label).toLowerCase());
+        const missing = names.filter(n => !foundLabels.includes(n));
+        if (missing.length > 0) {
+            logger.debug(`Exclude tags not found in Radarr (ignored): ${missing.join(', ')}`);
+        }
+
+        return ids;
+    } catch (error) {
+        logger.error('Error resolving exclude tags:', error);
+        return [];
+    }
+}
+
 export async function upsertMovies(movies: LetterboxdMovie[]): Promise<void> {
     const qualityProfileId = await getQualityProfileId(env.RADARR_QUALITY_PROFILE);
 
