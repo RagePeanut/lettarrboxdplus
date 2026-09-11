@@ -197,3 +197,45 @@ export async function addMovie(movie: LetterboxdMovie, qualityProfileId: number,
         logger.error(`Error adding movie ${movie.name} (TMDB: ${movie.tmdbId}):`, e);
     }
 }
+
+
+
+// ── Sync-mode helpers (bidirectional sync: add + remove) ──
+
+export interface RadarrExistingMovie {
+    id: number;
+    title: string;
+    tmdbId: number;
+    tags: number[];
+}
+
+/**
+ * Get all movies currently in Radarr that carry ALL of the given tag IDs.
+ */
+export async function getMoviesByTagIds(tagIds: number[]): Promise<RadarrExistingMovie[]> {
+    try {
+        const response = await axios.get('/api/v3/movie');
+        const allMovies: RadarrExistingMovie[] = response.data;
+        // Keep only movies that have every one of the required tags.
+        return allMovies.filter(m =>
+            tagIds.every(tid => m.tags.includes(tid))
+        );
+    } catch (error) {
+        logger.error('Error fetching movies from Radarr:', error);
+        return [];
+    }
+}
+
+/**
+ * Delete a movie from Radarr by its Radarr internal ID.
+ */
+export async function deleteMovie(
+    radarrId: number,
+    { deleteFiles = true, addImportExclusion = false }: { deleteFiles?: boolean; addImportExclusion?: boolean } = {}
+): Promise<void> {
+    const params = new URLSearchParams({
+        deleteFiles: String(deleteFiles),
+        addImportExclusion: String(addImportExclusion),
+    });
+    await axios.delete(`/api/v3/movie/${radarrId}?${params.toString()}`);
+}
