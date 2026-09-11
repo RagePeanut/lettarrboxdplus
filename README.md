@@ -240,7 +240,7 @@ docker run -d \
 | `DELETE_FILES` | `true` | When removing movies in sync mode, also delete the files from disk |
 | `ADD_IMPORT_EXCLUSION` | `false` | When removing movies in sync mode, add an import exclusion to prevent Radarr from re-adding the movie |
 | `UPDATE_EXISTING_TAGS` | `false` | When `true`, update tags on movies that already exist in Radarr. Required for `SYNC_MODE=sync` to work correctly. When `false` (default), existing movies are silently skipped (original Lettarrboxd behavior) |
-| `EXCLUDE_TAGS` | - | Comma-separated tag names that protect movies from removal in sync mode. A movie carrying any of these tags is never removed, even if it's no longer on the list. Useful when running multiple sync instances (e.g. protect a `collection` from a watchlist instance) |
+| `EXCLUDE_TAGS` | - | Comma-separated tag names that protect movies from **deletion** in sync mode. When a movie leaves this list but carries an excluded tag, it is **not deleted** — instead this instance's own tags are stripped from it (the movie is kept, owned by whatever gave it the excluded tag). Useful when running multiple sync instances (e.g. a watchlist and a collection) |
 
 ## Sync Mode (Bidirectional)
 
@@ -310,7 +310,17 @@ Letterboxd automatically removes a film from your watchlist once you log it as w
     restart: unless-stopped
 ```
 
-Now: watch a film → it drops off your watchlist → removed from Radarr. But if that film is also on your Digital Collection, the `collection` tag protects it from the watchlist instance's removal.
+Now: watch a film → it drops off your watchlist → removed from Radarr. But if that film is also on your Digital Collection, the `collection` tag protects it: instead of deleting it, the watchlist instance simply **removes its own `watchlist` tag**, leaving the movie in place (still owned by the collection).
+
+#### How protection avoids both wrongful deletion and deadlocks
+
+When a movie leaves a list but is protected by an excluded tag, the instance **strips only its own tags** rather than deleting the movie. This is important when both instances exclude each other's tag:
+
+- A film on both lists is tagged `watchlist` + `collection`.
+- Remove it from the watchlist → the watchlist instance strips `watchlist` (movie kept, now only `collection`).
+- Remove it from the collection too → the collection instance sees no protecting tag left → **deletes it**.
+
+Because protection *untags* rather than *skips*, a movie removed from every list is always eventually deleted — there's no deadlock where two instances each refuse to remove a movie the other "owns". You can safely set `EXCLUDE_TAGS` symmetrically on both instances (`EXCLUDE_TAGS=collection` on the watchlist instance, `EXCLUDE_TAGS=watchlist` on the collection instance).
 
 ### Example: Digital Collection
 

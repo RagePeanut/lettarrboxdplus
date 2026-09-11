@@ -326,3 +326,26 @@ export async function deleteMovie(
     });
     await axios.delete(`/api/v3/movie/${radarrId}?${params.toString()}`);
 }
+
+/**
+ * Remove the given tag IDs from a movie (without deleting the movie).
+ * Used when a movie leaves this instance's list but is still protected by
+ * another instance's tag: we strip only this instance's tags, ending its
+ * membership here while leaving the movie (and its other tags) intact.
+ */
+export async function removeTagsFromMovie(movie: RadarrExistingMovie, tagIdsToRemove: number[]): Promise<void> {
+    try {
+        // Fetch the full movie object (getMoviesByTagIds returns a subset of fields).
+        const response = await axios.get(`/api/v3/movie/${movie.id}`);
+        const full = response.data;
+        const newTags: number[] = (full.tags || []).filter((tid: number) => !tagIdsToRemove.includes(tid));
+
+        await axios.put(`/api/v3/movie/${movie.id}`, {
+            ...full,
+            tags: newTags,
+        });
+    } catch (error) {
+        logger.error(`Error removing tags from "${movie.title}" (ID: ${movie.id}):`, error);
+        throw error;
+    }
+}

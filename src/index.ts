@@ -4,7 +4,7 @@ require('dotenv').config();
 import env from './util/env';
 import logger from './util/logger';
 import { fetchMoviesFromUrl } from './scraper';
-import { upsertMovies, getAllRequiredTagIds, getMoviesByTagIds, deleteMovie, getExcludedTagIds } from './api/radarr';
+import { upsertMovies, getAllRequiredTagIds, getMoviesByTagIds, deleteMovie, getExcludedTagIds, removeTagsFromMovie } from './api/radarr';
 
 function startScheduledMonitoring(): void {
   const intervalMs = env.CHECK_INTERVAL_MINUTES * 60 * 1000;
@@ -48,22 +48,43 @@ async function syncRemovals(currentTmdbIds: number[]): Promise<void> {
     const currentSet = new Set(currentTmdbIds);
     const excludedTagIds = await getExcludedTagIds();
 
-    // Movies in Radarr (with our tags) that are NOT on the current Letterboxd list = removed.
-    // Movies carrying any excluded tag are protected and never removed.
+    // Movies in Radarr (with our tags) that are NOT on the current Letterboxd list.
     const candidates = radarrMovies.filter(m => !currentSet.has(m.tmdbId));
-    const toRemove = candidates.filter(m => {
-      const isProtected = excludedTagIds.some(tid => m.tags.includes(tid));
-      if (isProtected) {
-        logger.debug(`Skipping removal of "${m.title}" — protected by an excluded tag.`);
-      }
-      return !isProtected;
-    });
 
-    if (toRemove.length === 0) {
-      logger.debug('No movies to remove — Radarr and Letterboxd list are in sync (or remaining candidates are protected).');
+    // Split candidates into two groups:
+    //  - protected: carry an excluded tag (owned by another instance/list). We
+    //    don't delete these; instead we strip THIS instance's tags so the movie
+    //    is no longer considered part of this list. It stays in Radarr, owned by
+    //    whatever gave it the excluded tag. This avoids the "deadlock" where a
+    //    movie protected both ways could never be removed.
+    //  - toRemove: not protected → delete the whole movie.
+    const protectedCandidates = candidates.filter(m => excludedTagIds.some(tid => m.tags.includes(tid)));
+    const toRemove = candidates.filter(m => !excludedTagIds.some(tid => m.tags.includes(tid)));
+
+    if (toRemove.length === 0 && protectedCandidates.length === 0) {
+      logger.debug('No changes needed — Radarr and Letterboxd list are in sync.');
       return;
     }
 
+    // Handle protected movies: remove only this instance's tags (untag, don't delete).
+    for (const movie of protectedCandidates) {
+      const ourTagsOnMovie = tagIds.filter(tid => movie.tags.includes(tid));
+      if (ourTagsOnMovie.length === 0) continue;
+
+      if (env.DRY_RUN) {
+        logger.info(`[DRY RUN] Would untag "${movie.title}" (TMDB: ${movie.tmdbId}) — removing this list's tags; movie kept (protected by another tag).`);
+        continue;
+      }
+
+      try {
+        await removeTagsFromMovie(movie, ourTagsOnMovie);
+        logger.info(`Untagged "${movie.title}" (TMDB: ${movie.tmdbId}) — no longer part of this list; movie kept (protected by another tag).`);
+      } catch {
+        // error already logged in removeTagsFromMovie
+      }
+    }
+
+    // Handle unprotected movies: delete them entirely.
     for (const movie of toRemove) {
       if (env.DRY_RUN) {
         logger.info(`[DRY RUN] Would remove from Radarr: "${movie.title}" (TMDB: ${movie.tmdbId}, deleteFiles=${env.DELETE_FILES}, addImportExclusion=${env.ADD_IMPORT_EXCLUSION})`);
