@@ -1,10 +1,16 @@
-# Lettarrboxd
+# Lettarrboxd+
 
-Automatically sync your Letterboxd lists to Radarr for seamless movie management.
+A fork of [Lettarrboxd](https://github.com/ryanpag3/lettarrboxd) with **bidirectional sync**: movies removed from your Letterboxd list are also removed from Radarr.
+
+## What's new vs Lettarrboxd
+
+- **Sync mode** (`SYNC_MODE=sync`): makes your Letterboxd list the single source of truth. Movies added to the list are added to Radarr; movies removed from the list are removed from Radarr (with optional file deletion).
+- **Tag updating for existing movies**: when a movie already exists in Radarr (e.g. added by another instance), the configured tags are now applied to it instead of silently skipping. This is critical for multi-instance setups where tags identify which list a movie belongs to.
+- Fully **backward-compatible**: if you don't set `SYNC_MODE`, the behavior is identical to the original Lettarrboxd.
 
 ## Overview
 
-Lettarrboxd is an application that monitors your Letterboxd lists (watchlists, regular lists, watched movies, filmographies, collections, etc.) and automatically pushes new movies to Radarr. It runs continuously, checking for updates at configurable intervals and only processing new additions to avoid duplicate API calls.
+Lettarrboxd+ monitors your Letterboxd lists (watchlists, regular lists, watched movies, filmographies, collections, etc.) and automatically syncs them with Radarr. It runs continuously, checking for updates at configurable intervals.
 
 ## Supported Letterboxd URLs
 
@@ -227,8 +233,60 @@ docker run -d \
 | `RADARR_TAGS` | - | Additional tags to apply to movies (comma-separated). Movies are always tagged with `letterboxd` |
 | `LETTERBOXD_TAKE_AMOUNT` | - | Number of movies to sync (requires `LETTERBOXD_TAKE_STRATEGY`) |
 | `LETTERBOXD_TAKE_STRATEGY` | - | Movie selection strategy: `newest` or `oldest` (requires `LETTERBOXD_TAKE_AMOUNT`) |
-| `DRY_RUN` | `false` | When `true`, logs what would be added to Radarr without making actual API calls |
+| `DRY_RUN` | `false` | When `true`, logs what would be added/removed without making actual API calls |
 | `DATA_DIR` | `/data` | Directory for storing application data. You generally do not need to worry about this. |
+| `SYNC_MODE` | `add` | `add` (default): only add movies to Radarr. `sync`: bidirectional — also remove movies from Radarr when they are removed from the Letterboxd list |
+| `DELETE_FILES` | `true` | When removing movies in sync mode, also delete the files from disk |
+| `ADD_IMPORT_EXCLUSION` | `false` | When removing movies in sync mode, add an import exclusion to prevent Radarr from re-adding the movie |
+
+## Sync Mode (Bidirectional)
+
+When `SYNC_MODE=sync`, the Letterboxd list becomes the **single source of truth** for which movies should be in Radarr (with your configured tags). Each cycle:
+
+1. The list is scraped and new movies are added to Radarr (same as `add` mode).
+2. All Radarr movies carrying the configured `RADARR_TAGS` are queried.
+3. Movies in Radarr (with matching tags) that are **no longer on the Letterboxd list** are **removed** from Radarr.
+
+This is ideal for curated collections — add a movie to your Letterboxd list and it downloads; remove it and it's cleaned up automatically.
+
+### How removal works
+
+- Removal only targets movies with **all** your configured tags. Movies added by other instances (with different tags) are never touched.
+- `DELETE_FILES=true` (default): files are deleted from disk, freeing space. Plex reflects the removal automatically.
+- `ADD_IMPORT_EXCLUSION=false` (default): the movie can be re-added later (e.g. by another Lettarrboxd instance monitoring your watchlist). Set to `true` if you want removal to be permanent.
+- Respects `DRY_RUN`: when enabled, removals are logged but not executed.
+
+### Tag updating for existing movies
+
+When a movie on the Letterboxd list **already exists** in Radarr (e.g. added by a different instance), the original Lettarrboxd silently skips it without applying tags. Lettarrboxd+ instead **updates the existing movie's tags** to include the configured tags. This ensures the sync-mode removal logic can correctly identify which movies belong to which list.
+
+### Example: Digital Collection
+
+Use a dedicated Letterboxd list as your "permanent collection" — movies you want to keep on disk:
+
+```yaml
+  lettarrboxdplus-collection:
+    build: ./lettarrboxdplus
+    container_name: lettarrboxdplus-collection
+    environment:
+      - LETTERBOXD_URL=https://letterboxd.com/your_username/list/digital-collection/
+      - RADARR_API_URL=http://radarr:7878
+      - RADARR_API_KEY=your_api_key
+      - RADARR_QUALITY_PROFILE=Any
+      - RADARR_TAGS=collection
+      - SYNC_MODE=sync
+      - DELETE_FILES=true
+      - ADD_IMPORT_EXCLUSION=false
+      - CHECK_INTERVAL_MINUTES=120
+      - DRY_RUN=true   # Verify first, then set to false
+    volumes:
+      - ./data/collection:/data
+    restart: unless-stopped
+```
+
+- Add a film to "Digital Collection" on Letterboxd → it downloads, tagged `collection`.
+- Remove a film from the list → next sync removes it from Radarr + deletes the files.
+- Movies added by your watchlist instance (tagged `watchlist`) are unaffected.
 
 ## Development
 

@@ -191,13 +191,59 @@ export async function addMovie(movie: LetterboxdMovie, qualityProfileId: number,
         return response.data;
     } catch (e: any) {
         if (e.response?.status === 400 && (JSON.stringify(e.response?.data)).includes('This movie has already been added')) {
-            logger.debug(`Movie ${movie.name} already exists in Radarr, skipping`);
+            logger.debug(`Movie ${movie.name} already exists in Radarr, updating tags`);
+            await ensureMovieTags(movie, tagIds);
             return;
         }
         logger.error(`Error adding movie ${movie.name} (TMDB: ${movie.tmdbId}):`, e);
     }
 }
 
+/**
+ * For movies that already exist in Radarr, ensure our tags are applied.
+ * Fetches the existing movie by TMDB ID, merges the required tags, and
+ * saves if any were missing.
+ */
+async function ensureMovieTags(movie: LetterboxdMovie, requiredTagIds: number[]): Promise<void> {
+    if (!movie.tmdbId) return;
+
+    try {
+        const response = await axios.get(`/api/v3/movie`, {
+            params: { tmdbId: parseInt(movie.tmdbId) }
+        });
+
+        const matches = response.data;
+        if (!Array.isArray(matches) || matches.length === 0) {
+            logger.debug(`Could not find existing movie ${movie.name} in Radarr for tag update`);
+            return;
+        }
+
+        const existing = matches[0];
+        const currentTags: number[] = existing.tags || [];
+        const missingTags = requiredTagIds.filter(tid => !currentTags.includes(tid));
+
+        if (missingTags.length === 0) {
+            logger.debug(`Movie ${movie.name} already has all required tags`);
+            return;
+        }
+
+        const updatedTags = [...new Set([...currentTags, ...requiredTagIds])];
+
+        if (env.DRY_RUN) {
+            logger.info(`[DRY RUN] Would update tags for existing movie: ${movie.name} (adding tags: ${missingTags.join(', ')})`);
+            return;
+        }
+
+        await axios.put(`/api/v3/movie/${existing.id}`, {
+            ...existing,
+            tags: updatedTags,
+        });
+
+        logger.info(`Updated tags for existing movie: ${movie.name} (added tags: ${missingTags.join(', ')})`);
+    } catch (error) {
+        logger.error(`Error updating tags for ${movie.name}:`, error);
+    }
+}
 
 
 // ── Sync-mode helpers (bidirectional sync: add + remove) ──
