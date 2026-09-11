@@ -18,6 +18,10 @@ const envSchema = z.object({
   // Sync mode: 'add' (default, original behavior) or 'sync' (bidirectional: add + remove).
   // In 'sync' mode, movies removed from the Letterboxd list are also removed from Radarr.
   SYNC_MODE: z.enum(['add', 'sync']).default('add'),
+  // When true, update tags on movies that already exist in Radarr. When false
+  // (default), existing movies are silently skipped — matching the original
+  // Lettarrboxd behavior. Required for SYNC_MODE=sync to work correctly.
+  UPDATE_EXISTING_TAGS: z.string().default('false').transform(val => val.toLowerCase() === 'true'),
   // When removing movies in sync mode, also delete the files from disk.
   DELETE_FILES: z.string().default('true').transform(val => val.toLowerCase() === 'true'),
   // When removing movies in sync mode, add an import exclusion to prevent re-adding.

@@ -191,8 +191,12 @@ export async function addMovie(movie: LetterboxdMovie, qualityProfileId: number,
         return response.data;
     } catch (e: any) {
         if (e.response?.status === 400 && (JSON.stringify(e.response?.data)).includes('This movie has already been added')) {
-            logger.debug(`Movie ${movie.name} already exists in Radarr, updating tags`);
-            await ensureMovieTags(movie, tagIds);
+            if (env.UPDATE_EXISTING_TAGS) {
+                logger.debug(`Movie ${movie.name} already exists in Radarr, updating tags`);
+                await ensureMovieTags(movie, tagIds);
+            } else {
+                logger.debug(`Movie ${movie.name} already exists in Radarr, skipping`);
+            }
             return;
         }
         logger.error(`Error adding movie ${movie.name} (TMDB: ${movie.tmdbId}):`, e);

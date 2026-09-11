@@ -5,7 +5,7 @@ A fork of [Lettarrboxd](https://github.com/ryanpag3/lettarrboxd) with **bidirect
 ## What's new vs Lettarrboxd
 
 - **Sync mode** (`SYNC_MODE=sync`): makes your Letterboxd list the single source of truth. Movies added to the list are added to Radarr; movies removed from the list are removed from Radarr (with optional file deletion).
-- **Tag updating for existing movies**: when a movie already exists in Radarr (e.g. added by another instance), the configured tags are now applied to it instead of silently skipping. This is critical for multi-instance setups where tags identify which list a movie belongs to.
+- **Tag updating for existing movies** (`UPDATE_EXISTING_TAGS=true`): when a movie already exists in Radarr (e.g. added by another instance), the configured tags are applied to it instead of silently skipping. Required for sync mode to work correctly. Defaults to `false` to preserve original behavior.
 - Fully **backward-compatible**: if you don't set `SYNC_MODE`, the behavior is identical to the original Lettarrboxd.
 
 ## Overview
@@ -238,6 +238,7 @@ docker run -d \
 | `SYNC_MODE` | `add` | `add` (default): only add movies to Radarr. `sync`: bidirectional — also remove movies from Radarr when they are removed from the Letterboxd list |
 | `DELETE_FILES` | `true` | When removing movies in sync mode, also delete the files from disk |
 | `ADD_IMPORT_EXCLUSION` | `false` | When removing movies in sync mode, add an import exclusion to prevent Radarr from re-adding the movie |
+| `UPDATE_EXISTING_TAGS` | `false` | When `true`, update tags on movies that already exist in Radarr. Required for `SYNC_MODE=sync` to work correctly. When `false` (default), existing movies are silently skipped (original Lettarrboxd behavior) |
 
 ## Sync Mode (Bidirectional)
 
@@ -258,7 +259,9 @@ This is ideal for curated collections — add a movie to your Letterboxd list an
 
 ### Tag updating for existing movies
 
-When a movie on the Letterboxd list **already exists** in Radarr (e.g. added by a different instance), the original Lettarrboxd silently skips it without applying tags. Lettarrboxd+ instead **updates the existing movie's tags** to include the configured tags. This ensures the sync-mode removal logic can correctly identify which movies belong to which list.
+When a movie on the Letterboxd list **already exists** in Radarr (e.g. added by a different instance), the original Lettarrboxd silently skips it without applying tags. When `UPDATE_EXISTING_TAGS=true`, Lettarrboxd+ instead **updates the existing movie's tags** to include the configured tags. This ensures the sync-mode removal logic can correctly identify which movies belong to which list.
+
+> **Note:** `UPDATE_EXISTING_TAGS` defaults to `false` to preserve the original Lettarrboxd behavior. If you use `SYNC_MODE=sync`, you should set `UPDATE_EXISTING_TAGS=true` — otherwise movies that already exist in Radarr won't get the tags needed for sync removal to work.
 
 ### Example: Digital Collection
 
@@ -275,6 +278,7 @@ Use a dedicated Letterboxd list as your "permanent collection" — movies you wa
       - RADARR_QUALITY_PROFILE=Any
       - RADARR_TAGS=collection
       - SYNC_MODE=sync
+      - UPDATE_EXISTING_TAGS=true
       - DELETE_FILES=true
       - ADD_IMPORT_EXCLUSION=false
       - CHECK_INTERVAL_MINUTES=120
