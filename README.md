@@ -96,7 +96,7 @@ docker run -d \
   -e RADARR_QUALITY_PROFILE="HD-1080p" \
   -e RADARR_TAGS="watchlist,must-watch" \
   -e DRY_RUN=false \
-  ragepeanut/synchronizarr:latest
+  ghcr.io/ragepeanut/synchronizarr:latest
 ```
 
 For testing purposes, you can enable dry run mode:
@@ -108,7 +108,7 @@ docker run -d \
   -e RADARR_API_KEY=your_api_key \
   -e RADARR_QUALITY_PROFILE="HD-1080p" \
   -e DRY_RUN=true \
-  ragepeanut/synchronizarr:latest
+  ghcr.io/ragepeanut/synchronizarr:latest
 ```
 See [docker-compose.yaml](./docker-compose.yaml) for complete example.
 
@@ -125,7 +125,7 @@ docker run -d \
   -e SONARR_QUALITY_PROFILE="HD-1080p" \
   -e SONARR_TAGS="serializd-watchlist" \
   -e DRY_RUN=false \
-  ragepeanut/synchronizarr:latest
+  ghcr.io/ragepeanut/synchronizarr:latest
 ```
 
 Or run **both** pipelines in a single instance by providing the Letterboxd/Radarr **and** Serializd/Sonarr variables together:
@@ -133,7 +133,7 @@ Or run **both** pipelines in a single instance by providing the Letterboxd/Radar
 ```yaml
 services:
   synchronizarr:
-    image: ragepeanut/synchronizarr:latest
+    image: ghcr.io/ragepeanut/synchronizarr:latest
     container_name: synchronizarr
     environment:
       # Movies
@@ -169,7 +169,7 @@ To monitor multiple Letterboxd lists simultaneously, deploy one synchronizarr in
 ```yaml
 services:
   synchronizarr-watchlist:
-    image: ragepeanut/synchronizarr:latest
+    image: ghcr.io/ragepeanut/synchronizarr:latest
     container_name: synchronizarr-watchlist
     environment:
       - LETTERBOXD_URL=https://letterboxd.com/your_username/watchlist/
@@ -183,7 +183,7 @@ services:
     restart: unless-stopped
 
   synchronizarr-criterion:
-    image: ragepeanut/synchronizarr:latest
+    image: ghcr.io/ragepeanut/synchronizarr:latest
     container_name: synchronizarr-criterion
     environment:
       - LETTERBOXD_URL=https://letterboxd.com/criterion/list/the-criterion-collection/
@@ -197,7 +197,7 @@ services:
     restart: unless-stopped
 
   synchronizarr-nolan:
-    image: ragepeanut/synchronizarr:latest
+    image: ghcr.io/ragepeanut/synchronizarr:latest
     container_name: synchronizarr-nolan
     environment:
       - LETTERBOXD_URL=https://letterboxd.com/director/christopher-nolan/
@@ -224,7 +224,7 @@ docker run -d \
   -e RADARR_TAGS="watchlist,personal" \
   -e CHECK_INTERVAL_MINUTES=60 \
   -v ./data/watchlist:/data \
-  ragepeanut/synchronizarr:latest
+  ghcr.io/ragepeanut/synchronizarr:latest
 
 # Watch the Criterion Collection
 docker run -d \
@@ -236,7 +236,7 @@ docker run -d \
   -e RADARR_TAGS="criterion,classics" \
   -e CHECK_INTERVAL_MINUTES=120 \
   -v ./data/criterion:/data \
-  ragepeanut/synchronizarr:latest
+  ghcr.io/ragepeanut/synchronizarr:latest
 
 # Watch Christopher Nolan's filmography
 docker run -d \
@@ -248,7 +248,7 @@ docker run -d \
   -e RADARR_TAGS="nolan,director-filmography" \
   -e CHECK_INTERVAL_MINUTES=1440 \
   -v ./data/nolan:/data \
-  ragepeanut/synchronizarr:latest
+  ghcr.io/ragepeanut/synchronizarr:latest
 ```
 
 ### Best Practices for Multi-List Setup

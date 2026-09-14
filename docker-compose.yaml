@@ -1,7 +1,7 @@
 services:
   # Single instance example - watches one list
   synchronizarr:
-    image: ragepeanut/synchronizarr:latest
+    image: ghcr.io/ragepeanut/synchronizarr:latest
     container_name: synchronizarr
     environment:
       # Required variables
@@ -28,7 +28,7 @@ services:
   # Uncomment the services below to watch multiple lists simultaneously
 
   # synchronizarr-watchlist:
-  #   image: ragepeanut/synchronizarr:latest
+  #   image: ghcr.io/ragepeanut/synchronizarr:latest
   #   container_name: synchronizarr-watchlist
   #   environment:
   #     - LETTERBOXD_URL=https://letterboxd.com/your_username/watchlist/
@@ -42,7 +42,7 @@ services:
   #   restart: unless-stopped
 
   # synchronizarr-criterion:
-  #   image: ragepeanut/synchronizarr:latest
+  #   image: ghcr.io/ragepeanut/synchronizarr:latest
   #   container_name: synchronizarr-criterion
   #   environment:
   #     - LETTERBOXD_URL=https://letterboxd.com/criterion/list/the-criterion-collection/
@@ -56,7 +56,7 @@ services:
   #   restart: unless-stopped
 
   # synchronizarr-nolan:
-  #   image: ragepeanut/synchronizarr:latest
+  #   image: ghcr.io/ragepeanut/synchronizarr:latest
   #   container_name: synchronizarr-nolan
   #   environment:
   #     - LETTERBOXD_URL=https://letterboxd.com/director/christopher-nolan/
