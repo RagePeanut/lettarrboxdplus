@@ -205,3 +205,101 @@ describe('env', () => {
     mockConsoleError.mockRestore();
   });
 });
+
+
+describe('env — Serializd/Sonarr pipeline', () => {
+  let originalEnv: NodeJS.ProcessEnv;
+
+  beforeEach(() => {
+    originalEnv = { ...process.env };
+    jest.resetModules();
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it('validates a Serializd → Sonarr-only configuration (no Radarr)', () => {
+    process.env = {
+      NODE_ENV: 'test',
+      SERIALIZD_URL: 'https://serializd.com/user/bob/watchlist',
+      SONARR_API_URL: 'http://localhost:8989',
+      SONARR_API_KEY: 'test-key',
+      SONARR_QUALITY_PROFILE: 'HD-1080p',
+    } as NodeJS.ProcessEnv;
+
+    const mod = require('./env');
+    const env = mod.default;
+
+    expect(env.SERIALIZD_URL).toBe('https://serializd.com/user/bob/watchlist');
+    expect(env.SONARR_API_URL).toBe('http://localhost:8989');
+    expect(mod.isSonarrEnabled()).toBe(true);
+    expect(mod.isRadarrEnabled()).toBe(false);
+  });
+
+  it('validates a dual (Radarr + Sonarr) configuration', () => {
+    process.env = {
+      NODE_ENV: 'test',
+      LETTERBOXD_URL: 'https://letterboxd.com/user/watchlist',
+      RADARR_API_URL: 'http://localhost:7878',
+      RADARR_API_KEY: 'r-key',
+      RADARR_QUALITY_PROFILE: 'HD-1080p',
+      SERIALIZD_URL: 'https://serializd.com/user/bob/watchlist',
+      SONARR_API_URL: 'http://localhost:8989',
+      SONARR_API_KEY: 's-key',
+      SONARR_QUALITY_PROFILE: 'HD-1080p',
+      SONARR_MONITOR_SEASONS: '1,2',
+    } as NodeJS.ProcessEnv;
+
+    const mod = require('./env');
+    expect(mod.isRadarrEnabled()).toBe(true);
+    expect(mod.isSonarrEnabled()).toBe(true);
+    expect(mod.default.SONARR_MONITOR_SEASONS).toBe('1,2');
+  });
+
+  it('fails when no pipeline is configured', () => {
+    const mockExit = jest.spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('process.exit called');
+    });
+    const mockConsoleError = jest.spyOn(console, 'error').mockImplementation();
+
+    process.env = { NODE_ENV: 'test' } as NodeJS.ProcessEnv;
+
+    expect(() => {
+      jest.isolateModules(() => {
+        require('./env');
+      });
+    }).toThrow('process.exit called');
+
+    mockExit.mockRestore();
+    mockConsoleError.mockRestore();
+  });
+
+  it('fails when a Sonarr pipeline is partially configured', () => {
+    const mockExit = jest.spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('process.exit called');
+    });
+    const mockConsoleError = jest.spyOn(console, 'error').mockImplementation();
+
+    process.env = {
+      NODE_ENV: 'test',
+      // A complete Radarr pipeline so the "at least one" rule passes...
+      LETTERBOXD_URL: 'https://letterboxd.com/user/watchlist',
+      RADARR_API_URL: 'http://localhost:7878',
+      RADARR_API_KEY: 'r-key',
+      RADARR_QUALITY_PROFILE: 'HD-1080p',
+      // ...but an incomplete Sonarr pipeline (missing SONARR_API_KEY + profile).
+      SERIALIZD_URL: 'https://serializd.com/user/bob/watchlist',
+      SONARR_API_URL: 'http://localhost:8989',
+    } as NodeJS.ProcessEnv;
+
+    expect(() => {
+      jest.isolateModules(() => {
+        require('./env');
+      });
+    }).toThrow('process.exit called');
+
+    mockExit.mockRestore();
+    mockConsoleError.mockRestore();
+  });
+});

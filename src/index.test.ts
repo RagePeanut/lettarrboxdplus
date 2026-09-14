@@ -4,8 +4,15 @@ import * as radarrModule from './api/radarr';
 
 // Mock dependencies
 jest.mock('./util/env', () => ({
-  CHECK_INTERVAL_MINUTES: 10,
-  LETTERBOXD_URL: 'https://letterboxd.com/user/watchlist',
+  __esModule: true,
+  default: {
+    CHECK_INTERVAL_MINUTES: 10,
+    LETTERBOXD_URL: 'https://letterboxd.com/user/watchlist',
+    SYNC_MODE: 'add',
+  },
+  // Radarr enabled, Sonarr disabled — preserves the original single-pipeline behavior.
+  isRadarrEnabled: () => true,
+  isSonarrEnabled: () => false,
 }));
 jest.mock('./util/logger', () => ({
   debug: jest.fn(),
@@ -14,7 +21,9 @@ jest.mock('./util/logger', () => ({
   error: jest.fn(),
 }));
 jest.mock('./scraper');
+jest.mock('./scraper-tv');
 jest.mock('./api/radarr');
+jest.mock('./api/sonarr');
 
 describe('main application', () => {
   let setIntervalSpy: jest.SpyInstance;
