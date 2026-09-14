@@ -19,10 +19,14 @@ interface RadarrMovie {
 
 const DEFAULT_TAG_NAME = 'letterboxd';
 
+// RADARR_API_URL/KEY are optional at the env level (the Serializd → Sonarr
+// pipeline can run standalone). Fall back to empty strings here; this module's
+// functions are only ever called when the Letterboxd → Radarr pipeline is
+// enabled (see isRadarrEnabled() in util/env).
 const axios = Axios.create({
-    baseURL: env.RADARR_API_URL,
+    baseURL: env.RADARR_API_URL ?? '',
     headers: {
-        'X-Api-Key': env.RADARR_API_KEY
+        'X-Api-Key': env.RADARR_API_KEY ?? ''
     }
 });
 
@@ -176,6 +180,10 @@ export async function getExcludedTagIds(): Promise<number[]> {
 }
 
 export async function upsertMovies(movies: LetterboxdMovie[]): Promise<void> {
+    if (!env.RADARR_QUALITY_PROFILE) {
+        throw new Error('RADARR_QUALITY_PROFILE is not configured.');
+    }
+
     const qualityProfileId = await getQualityProfileId(env.RADARR_QUALITY_PROFILE);
 
     if (!qualityProfileId) {

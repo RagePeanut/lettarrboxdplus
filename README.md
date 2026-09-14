@@ -1,17 +1,20 @@
 # Lettarrboxd+
 
-A fork of [Lettarrboxd](https://github.com/ryanpag3/lettarrboxd) with **bidirectional sync**: movies removed from your Letterboxd list are also removed from Radarr.
+A fork of [Lettarrboxd](https://github.com/ryanpag3/lettarrboxd) with **bidirectional sync** and **Serializd → Sonarr** support: movies removed from your Letterboxd list are also removed from Radarr, and TV shows on your Serializd lists are synced to Sonarr the same way.
 
 ## What's new vs Lettarrboxd
 
-- **Sync mode** (`SYNC_MODE=sync`): makes your Letterboxd list the single source of truth. Movies added to the list are added to Radarr; movies removed from the list are removed from Radarr (with optional file deletion).
-- **Removal protection** (`EXCLUDE_TAGS`): protect movies carrying specific tags from sync removal — essential when running multiple sync instances (e.g. a watchlist that auto-cleans watched films alongside a protected collection).
-- **Tag updating for existing movies** (`UPDATE_EXISTING_TAGS=true`): when a movie already exists in Radarr (e.g. added by another instance), the configured tags are applied to it instead of silently skipping. Required for sync mode to work correctly. Defaults to `false` to preserve original behavior.
-- Fully **backward-compatible**: if you don't set `SYNC_MODE`, the behavior is identical to the original Lettarrboxd.
+- **Serializd → Sonarr (TV shows)**: point `SERIALIZD_URL` at a Serializd watchlist or list and configure `SONARR_*`, and your tracked shows are added to Sonarr — with the same tagging, sync, and protection features as the movie side. You can run the Letterboxd→Radarr pipeline, the Serializd→Sonarr pipeline, or **both at once**.
+- **Sync mode** (`SYNC_MODE=sync`): makes your source list the single source of truth. Items added to the list are added to Radarr/Sonarr; items removed from the list are removed from Radarr/Sonarr (with optional file deletion).
+- **Removal protection** (`EXCLUDE_TAGS`): protect items carrying specific tags from sync removal — essential when running multiple sync instances (e.g. a watchlist that auto-cleans watched titles alongside a protected collection).
+- **Tag updating for existing items** (`UPDATE_EXISTING_TAGS=true`): when an item already exists in Radarr/Sonarr (e.g. added by another instance), the configured tags are applied to it instead of silently skipping. Required for sync mode to work correctly. Defaults to `false` to preserve original behavior.
+- Fully **backward-compatible**: if you only set the Letterboxd/Radarr variables and don't set `SYNC_MODE`, the behavior is identical to the original Lettarrboxd.
 
 ## Overview
 
-Lettarrboxd+ monitors your Letterboxd lists (watchlists, regular lists, watched movies, filmographies, collections, etc.) and automatically syncs them with Radarr. It runs continuously, checking for updates at configurable intervals.
+Lettarrboxd+ monitors your Letterboxd lists (watchlists, regular lists, watched movies, filmographies, collections, etc.) and syncs them with Radarr, and monitors your Serializd lists/watchlists and syncs them with Sonarr. It runs continuously, checking for updates at configurable intervals. Both pipelines share the same scheduler and sync-behavior settings.
+
+Serializd is a TMDB-backed TV tracking site, so a show's Serializd id is its TMDB id. Because Sonarr keys series on TVDB, Lettarrboxd+ resolves each show through Sonarr's own lookup (`/api/v3/series/lookup?term=tmdb:<id>`) before adding it, so the correct series is matched automatically.
 
 ## Supported Letterboxd URLs
 
@@ -58,6 +61,28 @@ LETTERBOXD_URL=https://letterboxd.com/writer/aaron-sorkin/
 
 **Note**: All Letterboxd lists must be public for the application to access them.
 
+## Supported Serializd URLs
+
+To sync TV shows to Sonarr, set the `SERIALIZD_URL` environment variable to one of:
+
+- **Watchlists**: `https://serializd.com/user/username/watchlist`
+- **User Lists**: `https://serializd.com/user/username/lists/list-slug`
+- **Public Lists**: `https://serializd.com/list/public-list-slug-or-id`
+
+### Examples
+```bash
+# A user's Serializd watchlist
+SERIALIZD_URL=https://serializd.com/user/tvfan123/watchlist
+
+# A user's custom list
+SERIALIZD_URL=https://serializd.com/user/tvfan123/lists/comfort-shows
+
+# A public list
+SERIALIZD_URL=https://serializd.com/list/best-of-2024-4567
+```
+
+**Note**: Serializd lists/watchlists must be public. Season selections made on Serializd are honored — if you track only specific seasons of a show, only those seasons are monitored in Sonarr; otherwise all seasons are monitored (see `SONARR_MONITOR_SEASONS` to change the default).
+
 ## Quick Start
 
 ### Docker
@@ -86,6 +111,49 @@ docker run -d \
   ryanpage/lettarrboxd:latest
 ```
 See [docker-compose.yaml](./docker-compose.yaml) for complete example.
+
+### Serializd → Sonarr (TV shows)
+
+Run the TV pipeline on its own:
+
+```bash
+docker run -d \
+  --name lettarrboxd-tv \
+  -e SERIALIZD_URL=https://serializd.com/user/your_username/watchlist \
+  -e SONARR_API_URL=http://your-sonarr:8989 \
+  -e SONARR_API_KEY=your_api_key \
+  -e SONARR_QUALITY_PROFILE="HD-1080p" \
+  -e SONARR_TAGS="serializd-watchlist" \
+  -e DRY_RUN=false \
+  ryanpage/lettarrboxd:latest
+```
+
+Or run **both** pipelines in a single instance by providing the Letterboxd/Radarr **and** Serializd/Sonarr variables together:
+
+```yaml
+services:
+  lettarrboxd:
+    image: ryanpage/lettarrboxd:latest
+    container_name: lettarrboxd
+    environment:
+      # Movies
+      - LETTERBOXD_URL=https://letterboxd.com/your_username/watchlist/
+      - RADARR_API_URL=http://radarr:7878
+      - RADARR_API_KEY=your_radarr_api_key
+      - RADARR_QUALITY_PROFILE=HD-1080p
+      # TV shows
+      - SERIALIZD_URL=https://serializd.com/user/your_username/watchlist
+      - SONARR_API_URL=http://sonarr:8989
+      - SONARR_API_KEY=your_sonarr_api_key
+      - SONARR_QUALITY_PROFILE=HD-1080p
+      # Shared
+      - SYNC_MODE=sync
+      - UPDATE_EXISTING_TAGS=true
+      - CHECK_INTERVAL_MINUTES=60
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+```
 
 ## Watching Multiple Lists
 
@@ -214,7 +282,11 @@ docker run -d \
 
 ## Configuration
 
-### Required Environment Variables
+You can enable **either or both** pipelines. At least one complete pipeline must be configured.
+
+### Letterboxd → Radarr (movies)
+
+Required together to enable the movie pipeline:
 
 | Variable | Description | Example |
 |----------|-------------|---------|
@@ -223,24 +295,51 @@ docker run -d \
 | `RADARR_API_KEY` | Radarr API key | `abc123...` |
 | `RADARR_QUALITY_PROFILE` | Quality profile name in Radarr | `HD-1080p` |
 
-### Optional Environment Variables
+Optional (movie pipeline):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `CHECK_INTERVAL_MINUTES` | `10` | How often to check for new movies (minimum 10) |
 | `RADARR_MINIMUM_AVAILABILITY` | `released` | When movie becomes available (`announced`, `inCinemas`, `released`) |
 | `RADARR_ROOT_FOLDER_ID` | - | Specific root folder ID to use in Radarr (uses first available if not set) |
 | `RADARR_ADD_UNMONITORED` | `false` | When `true`, adds movies to Radarr in an unmonitored state |
 | `RADARR_TAGS` | - | Additional tags to apply to movies (comma-separated). Movies are always tagged with `letterboxd` |
 | `LETTERBOXD_TAKE_AMOUNT` | - | Number of movies to sync (requires `LETTERBOXD_TAKE_STRATEGY`) |
 | `LETTERBOXD_TAKE_STRATEGY` | - | Movie selection strategy: `newest` or `oldest` (requires `LETTERBOXD_TAKE_AMOUNT`) |
+
+### Serializd → Sonarr (TV shows)
+
+Required together to enable the TV pipeline:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `SERIALIZD_URL` | Your Serializd list/watchlist URL | `https://serializd.com/user/tvfan123/watchlist` |
+| `SONARR_API_URL` | Sonarr base URL | `http://sonarr:8989` |
+| `SONARR_API_KEY` | Sonarr API key | `abc123...` |
+| `SONARR_QUALITY_PROFILE` | Quality profile name in Sonarr | `HD-1080p` |
+
+Optional (TV pipeline):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SONARR_ROOT_FOLDER_ID` | - | Specific root folder ID to use in Sonarr (uses first available if not set) |
+| `SONARR_ADD_UNMONITORED` | `false` | When `true`, adds series to Sonarr in an unmonitored state |
+| `SONARR_TAGS` | - | Additional tags to apply to series (comma-separated). Series are always tagged with `serializd` |
+| `SONARR_MONITOR_SEASONS` | - | Comma-separated season numbers to monitor for every added series (e.g. `1,2`). When unset, all seasons are monitored. Season selections made on Serializd always take precedence for that series |
+
+### Shared Environment Variables
+
+These apply to whichever pipeline(s) you enable:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CHECK_INTERVAL_MINUTES` | `10` | How often to check for new items (minimum 10) |
 | `DRY_RUN` | `false` | When `true`, logs what would be added/removed without making actual API calls |
 | `DATA_DIR` | `/data` | Directory for storing application data. You generally do not need to worry about this. |
-| `SYNC_MODE` | `add` | `add` (default): only add movies to Radarr. `sync`: bidirectional — also remove movies from Radarr when they are removed from the Letterboxd list |
-| `DELETE_FILES` | `true` | When removing movies in sync mode, also delete the files from disk |
-| `ADD_IMPORT_EXCLUSION` | `false` | When removing movies in sync mode, add an import exclusion to prevent Radarr from re-adding the movie |
-| `UPDATE_EXISTING_TAGS` | `false` | When `true`, update tags on movies that already exist in Radarr. Required for `SYNC_MODE=sync` to work correctly. When `false` (default), existing movies are silently skipped (original Lettarrboxd behavior) |
-| `EXCLUDE_TAGS` | - | Comma-separated tag names that protect movies from **deletion** in sync mode. When a movie leaves this list but carries an excluded tag, it is **not deleted** — instead this instance's own tags are stripped from it (the movie is kept, owned by whatever gave it the excluded tag). Useful when running multiple sync instances (e.g. a watchlist and a collection) |
+| `SYNC_MODE` | `add` | `add` (default): only add items. `sync`: bidirectional — also remove items from Radarr/Sonarr when they are removed from the source list |
+| `DELETE_FILES` | `true` | When removing items in sync mode, also delete the files from disk |
+| `ADD_IMPORT_EXCLUSION` | `false` | When removing items in sync mode, add an import exclusion to prevent Radarr/Sonarr from re-adding the item |
+| `UPDATE_EXISTING_TAGS` | `false` | When `true`, update tags on items that already exist in Radarr/Sonarr. Required for `SYNC_MODE=sync` to work correctly. When `false` (default), existing items are silently skipped (original Lettarrboxd behavior) |
+| `EXCLUDE_TAGS` | - | Comma-separated tag names that protect items from **deletion** in sync mode. When an item leaves this list but carries an excluded tag, it is **not deleted** — instead this instance's own tags are stripped from it (the item is kept, owned by whatever gave it the excluded tag). Useful when running multiple sync instances (e.g. a watchlist and a collection) |
 
 ## Sync Mode (Bidirectional)
 
