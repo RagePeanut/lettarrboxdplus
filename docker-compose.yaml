@@ -1,8 +1,8 @@
 services:
   # Single instance example - watches one list
-  lettarrboxd:
-    image: ryanpage/lettarrboxd:latest
-    container_name: lettarrboxd
+  synchronizarr:
+    image: ghcr.io/ragepeanut/synchronizarr:latest
+    container_name: synchronizarr
     environment:
       # Required variables
       - LETTERBOXD_URL=https://letterboxd.com/your_username/watchlist/
@@ -27,9 +27,9 @@ services:
   # Multi-list example - deploy one instance per list
   # Uncomment the services below to watch multiple lists simultaneously
 
-  # lettarrboxd-watchlist:
-  #   image: ryanpage/lettarrboxd:latest
-  #   container_name: lettarrboxd-watchlist
+  # synchronizarr-watchlist:
+  #   image: ghcr.io/ragepeanut/synchronizarr:latest
+  #   container_name: synchronizarr-watchlist
   #   environment:
   #     - LETTERBOXD_URL=https://letterboxd.com/your_username/watchlist/
   #     - RADARR_API_URL=http://radarr:7878
@@ -41,9 +41,9 @@ services:
   #     - ./data/watchlist:/data
   #   restart: unless-stopped
 
-  # lettarrboxd-criterion:
-  #   image: ryanpage/lettarrboxd:latest
-  #   container_name: lettarrboxd-criterion
+  # synchronizarr-criterion:
+  #   image: ghcr.io/ragepeanut/synchronizarr:latest
+  #   container_name: synchronizarr-criterion
   #   environment:
   #     - LETTERBOXD_URL=https://letterboxd.com/criterion/list/the-criterion-collection/
   #     - RADARR_API_URL=http://radarr:7878
@@ -55,9 +55,9 @@ services:
   #     - ./data/criterion:/data
   #   restart: unless-stopped
 
-  # lettarrboxd-nolan:
-  #   image: ryanpage/lettarrboxd:latest
-  #   container_name: lettarrboxd-nolan
+  # synchronizarr-nolan:
+  #   image: ghcr.io/ragepeanut/synchronizarr:latest
+  #   container_name: synchronizarr-nolan
   #   environment:
   #     - LETTERBOXD_URL=https://letterboxd.com/director/christopher-nolan/
   #     - RADARR_API_URL=http://radarr:7878

@@ -39,14 +39,14 @@ ENV NODE_ENV=production
 ENV DATA_DIR=/data
 
 # Create non-root user for security
-RUN addgroup -g 1001 -S lettarrboxd && \
-    adduser -S lettarrboxd -u 1001 -G lettarrboxd
+RUN addgroup -g 1001 -S synchronizarr && \
+    adduser -S synchronizarr -u 1001 -G synchronizarr
 
 # Change ownership of app and data directories
-RUN chown -R lettarrboxd:lettarrboxd /app /data
+RUN chown -R synchronizarr:synchronizarr /app /data
 
 # Switch to non-root user
-USER lettarrboxd
+USER synchronizarr
 
 # Expose port (optional, for health checks)
 EXPOSE 3000

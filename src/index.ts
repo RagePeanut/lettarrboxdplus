@@ -1,5 +1,5 @@
 require('dotenv').config();
-
+require('dotenv').config();
 
 import env, { isRadarrEnabled, isSonarrEnabled } from './util/env';
 import logger from './util/logger';
@@ -219,7 +219,7 @@ export async function main() {
   startScheduledMonitoring();
 }
 
-export { startScheduledMonitoring };
+export { startScheduledMonitoring, run, runMovies, runSeries, syncMovieRemovals, syncSeriesRemovals };
 
 // Only run main if this file is executed directly
 if (require.main === module) {

@@ -1,8 +1,8 @@
 {
-  "name": "lettarrboxd",
+  "name": "synchronizarr",
   "version": "1.0.0",
   "main": "dist/index.js",
-  "repository": "git@github.com:ryanpag3/lettarrboxd.git",
+  "repository": "git@github.com:RagePeanut/synchronizarr.git",
   "author": "Ryan Page <ryanapage@gmail.com>",
   "license": "MIT",
   "private": true,

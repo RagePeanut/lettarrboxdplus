@@ -43,7 +43,7 @@ const envSchema = z.object({
   SYNC_MODE: z.enum(['add', 'sync']).default('add'),
   // When true, update tags on items that already exist in Radarr/Sonarr. When
   // false (default), existing items are silently skipped — matching the
-  // original Lettarrboxd behavior. Required for SYNC_MODE=sync to work correctly.
+  // original upstream behavior. Required for SYNC_MODE=sync to work correctly.
   UPDATE_EXISTING_TAGS: z.string().default('false').transform(val => val.toLowerCase() === 'true'),
   // When removing items in sync mode, also delete the files from disk.
   DELETE_FILES: z.string().default('true').transform(val => val.toLowerCase() === 'true'),
