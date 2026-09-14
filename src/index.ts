@@ -1,5 +1,5 @@
 require('dotenv').config();
-
+require('dotenv').config();
 
 import env, { isRadarrEnabled, isSonarrEnabled } from './util/env';
 import logger from './util/logger';

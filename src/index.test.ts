@@ -1,26 +1,13 @@
-import * as scraperModule from './scraper';
-import * as scraperTvModule from './scraper-tv';
-import * as radarrModule from './api/radarr';
-import * as sonarrModule from './api/sonarr';
-
-// A mutable env object so each test can tweak flags before importing index.
-const mockEnv: any = {
-  CHECK_INTERVAL_MINUTES: 10,
-  LETTERBOXD_URL: 'https://letterboxd.com/user/watchlist',
-  SERIALIZD_URL: 'https://serializd.com/user/bob/watchlist',
-  SYNC_MODE: 'add',
-  DRY_RUN: false,
-  DELETE_FILES: true,
-  ADD_IMPORT_EXCLUSION: false,
-};
-let mockRadarrEnabled = true;
-let mockSonarrEnabled = false;
+// Mutable mock state, read lazily by the env mock factory. All names are
+// mock-prefixed so Jest allows referencing them from the hoisted jest.mock().
+const mockEnv: any = {};
+const mockFlags = { radarr: true, sonarr: false };
 
 jest.mock('./util/env', () => ({
   __esModule: true,
-  get default() { return mockEnv; },
-  isRadarrEnabled: () => mockRadarrEnabled,
-  isSonarrEnabled: () => mockSonarrEnabled,
+  default: mockEnv,
+  isRadarrEnabled: () => mockFlags.radarr,
+  isSonarrEnabled: () => mockFlags.sonarr,
 }));
 jest.mock('./util/logger', () => ({
   debug: jest.fn(),
@@ -33,7 +20,10 @@ jest.mock('./scraper-tv');
 jest.mock('./api/radarr');
 jest.mock('./api/sonarr');
 
-// Imported after the mocks above.
+import * as scraperModule from './scraper';
+import * as scraperTvModule from './scraper-tv';
+import * as radarrModule from './api/radarr';
+import * as sonarrModule from './api/sonarr';
 import {
   main,
   startScheduledMonitoring,
@@ -45,16 +35,23 @@ import {
 } from './index';
 
 const resetEnv = () => {
-  mockEnv.CHECK_INTERVAL_MINUTES = 10;
-  mockEnv.LETTERBOXD_URL = 'https://letterboxd.com/user/watchlist';
-  mockEnv.SERIALIZD_URL = 'https://serializd.com/user/bob/watchlist';
-  mockEnv.SYNC_MODE = 'add';
-  mockEnv.DRY_RUN = false;
-  mockEnv.DELETE_FILES = true;
-  mockEnv.ADD_IMPORT_EXCLUSION = false;
-  mockRadarrEnabled = true;
-  mockSonarrEnabled = false;
+  // Reset the SAME object reference that index.ts captured at import time.
+  Object.keys(mockEnv).forEach(k => delete mockEnv[k]);
+  Object.assign(mockEnv, {
+    CHECK_INTERVAL_MINUTES: 10,
+    LETTERBOXD_URL: 'https://letterboxd.com/user/watchlist',
+    SERIALIZD_URL: 'https://serializd.com/user/bob/watchlist',
+    SYNC_MODE: 'add',
+    DRY_RUN: false,
+    DELETE_FILES: true,
+    ADD_IMPORT_EXCLUSION: false,
+  });
+  mockFlags.radarr = true;
+  mockFlags.sonarr = false;
 };
+
+// Seed before any test constructs run.
+resetEnv();
 
 describe('main application', () => {
   let setIntervalSpy: jest.SpyInstance;
@@ -88,7 +85,7 @@ describe('main application', () => {
 
     it('logs sync-mode and sonarr-enabled notices', async () => {
       mockEnv.SYNC_MODE = 'sync';
-      mockSonarrEnabled = true;
+      mockFlags.sonarr = true;
       (scraperModule.fetchMoviesFromUrl as jest.Mock).mockResolvedValue([]);
       (radarrModule.upsertMovies as jest.Mock).mockResolvedValue(undefined);
       (radarrModule.getAllRequiredTagIds as jest.Mock).mockResolvedValue([]);
@@ -131,8 +128,8 @@ describe('main application', () => {
 
   describe('run', () => {
     it('runs only the movie pipeline when only Radarr is enabled', async () => {
-      mockRadarrEnabled = true;
-      mockSonarrEnabled = false;
+      mockFlags.radarr = true;
+      mockFlags.sonarr = false;
       (scraperModule.fetchMoviesFromUrl as jest.Mock).mockResolvedValue([]);
       (radarrModule.upsertMovies as jest.Mock).mockResolvedValue(undefined);
 
@@ -143,8 +140,8 @@ describe('main application', () => {
     });
 
     it('runs only the series pipeline when only Sonarr is enabled', async () => {
-      mockRadarrEnabled = false;
-      mockSonarrEnabled = true;
+      mockFlags.radarr = false;
+      mockFlags.sonarr = true;
       (scraperTvModule.fetchSeriesFromUrl as jest.Mock).mockResolvedValue([]);
       (sonarrModule.upsertSeries as jest.Mock).mockResolvedValue(undefined);
 
@@ -155,8 +152,8 @@ describe('main application', () => {
     });
 
     it('runs both pipelines when both are enabled', async () => {
-      mockRadarrEnabled = true;
-      mockSonarrEnabled = true;
+      mockFlags.radarr = true;
+      mockFlags.sonarr = true;
       (scraperModule.fetchMoviesFromUrl as jest.Mock).mockResolvedValue([]);
       (radarrModule.upsertMovies as jest.Mock).mockResolvedValue(undefined);
       (scraperTvModule.fetchSeriesFromUrl as jest.Mock).mockResolvedValue([]);
@@ -174,7 +171,7 @@ describe('main application', () => {
       mockEnv.SYNC_MODE = 'sync';
       const movies = [
         { id: 1, name: 'A', slug: '/film/a/', tmdbId: '123', imdbId: null, publishedYear: null },
-        { id: 2, name: 'B', slug: '/film/b/', tmdbId: null, imdbId: null, publishedYear: null }, // filtered out
+        { id: 2, name: 'B', slug: '/film/b/', tmdbId: null, imdbId: null, publishedYear: null },
       ];
       (scraperModule.fetchMoviesFromUrl as jest.Mock).mockResolvedValue(movies);
       (radarrModule.upsertMovies as jest.Mock).mockResolvedValue(undefined);
@@ -238,7 +235,7 @@ describe('main application', () => {
       (radarrModule.getMoviesByTagIds as jest.Mock).mockResolvedValue([{ id: 1, title: 'A', tmdbId: 123, tags: [10] }]);
       (radarrModule.getExcludedTagIds as jest.Mock).mockResolvedValue([]);
 
-      await syncMovieRemovals([123]); // still on list
+      await syncMovieRemovals([123]);
 
       expect(radarrModule.deleteMovie).not.toHaveBeenCalled();
       expect(radarrModule.removeTagsFromMovie).not.toHaveBeenCalled();
@@ -250,7 +247,7 @@ describe('main application', () => {
       (radarrModule.getExcludedTagIds as jest.Mock).mockResolvedValue([]);
       (radarrModule.deleteMovie as jest.Mock).mockResolvedValue(undefined);
 
-      await syncMovieRemovals([123]); // 999 no longer present
+      await syncMovieRemovals([123]);
 
       expect(radarrModule.deleteMovie).toHaveBeenCalledWith(7, { deleteFiles: true, addImportExclusion: false });
     });
