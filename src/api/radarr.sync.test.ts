@@ -153,3 +153,43 @@ describe('radarr sync helpers', () => {
     });
   });
 });
+
+
+// ── Additional branch coverage for radarr.ts ──
+describe('radarr branch coverage', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  const movie = { id: 1, name: 'Existing', slug: '/film/x/', tmdbId: '500', imdbId: null, publishedYear: 2020 };
+
+  it('addMovie logs (no post) in DRY_RUN mode', async () => {
+    const env = require('../util/env');
+    env.DRY_RUN = true;
+    await addMovie(movie, 2, '/movies', [10], 'released');
+    expect(mockAxiosInstance.post).not.toHaveBeenCalled();
+    env.DRY_RUN = false;
+  });
+
+  it('addMovie logs a generic error for a non-400 failure', async () => {
+    mockAxiosInstance.post.mockRejectedValueOnce(new Error('network'));
+    await expect(addMovie(movie, 2, '/movies', [10], 'released')).resolves.toBeUndefined();
+  });
+
+  it('ensureMovieTags: no matching existing movie found', async () => {
+    mockAxiosInstance.post.mockRejectedValueOnce({ response: { status: 400, data: 'This movie has already been added' } });
+    mockAxiosInstance.get.mockResolvedValueOnce({ data: [] }); // lookup returns nothing
+    await addMovie(movie, 2, '/movies', [10], 'released');
+    expect(mockAxiosInstance.put).not.toHaveBeenCalled();
+  });
+
+  it('ensureMovieTags: handles lookup error gracefully', async () => {
+    mockAxiosInstance.post.mockRejectedValueOnce({ response: { status: 400, data: 'This movie has already been added' } });
+    mockAxiosInstance.get.mockRejectedValueOnce(new Error('lookup failed'));
+    await expect(addMovie(movie, 2, '/movies', [10], 'released')).resolves.toBeUndefined();
+  });
+
+  it('getExcludedTagIds logs a debug note for names not present in Radarr', async () => {
+    // EXCLUDE_TAGS is "collection"; return a tag list without it → missing branch.
+    mockAxiosInstance.get.mockResolvedValueOnce({ data: [{ id: 1, label: 'something-else' }] });
+    expect(await getExcludedTagIds()).toEqual([]);
+  });
+});

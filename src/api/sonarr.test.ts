@@ -37,8 +37,11 @@ jest.mock('../util/env', () => ({
 import {
   getQualityProfileId,
   getRootFolder,
+  getRootFolderById,
   getOrCreateTag,
   getAllRequiredTagIds,
+  getExcludedTagIds,
+  getGlobalMonitorSeasons,
   addSeries,
   upsertSeries,
   getSeriesByTagIds,
@@ -250,6 +253,148 @@ describe('sonarr API', () => {
     it('rethrows on error', async () => {
       mockAxiosInstance.get.mockRejectedValueOnce(new Error('nope'));
       await expect(removeTagsFromSeries({ id: 3, title: 'C', tmdbId: 3, tags: [] }, [1])).rejects.toThrow('nope');
+    });
+  });
+});
+
+
+// ── Additional branch coverage (error paths, defaults, guards) ──
+describe('sonarr API — branch coverage', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  describe('getQualityProfileId', () => {
+    it('returns null on error', async () => {
+      mockAxiosInstance.get.mockRejectedValueOnce(new Error('boom'));
+      expect(await getQualityProfileId('HD-1080p')).toBeNull();
+    });
+  });
+
+  describe('getRootFolder', () => {
+    it('returns null when none configured', async () => {
+      mockAxiosInstance.get.mockResolvedValueOnce({ data: [] });
+      expect(await getRootFolder()).toBeNull();
+    });
+    it('returns null on error', async () => {
+      mockAxiosInstance.get.mockRejectedValueOnce(new Error('boom'));
+      expect(await getRootFolder()).toBeNull();
+    });
+  });
+
+  describe('getRootFolderById', () => {
+    it('returns the path when found', async () => {
+      mockAxiosInstance.get.mockResolvedValueOnce({ data: { id: 1, path: '/tv' } });
+      expect(await getRootFolderById('1')).toBe('/tv');
+    });
+    it('returns null when data is empty', async () => {
+      mockAxiosInstance.get.mockResolvedValueOnce({ data: null });
+      expect(await getRootFolderById('9')).toBeNull();
+    });
+    it('returns null on error', async () => {
+      mockAxiosInstance.get.mockRejectedValueOnce(new Error('boom'));
+      expect(await getRootFolderById('1')).toBeNull();
+    });
+  });
+
+  describe('getOrCreateTag', () => {
+    it('returns null on error', async () => {
+      mockAxiosInstance.get.mockRejectedValueOnce(new Error('boom'));
+      expect(await getOrCreateTag('x')).toBeNull();
+    });
+  });
+
+  describe('getAllRequiredTagIds', () => {
+    it('warns and filters out tags that fail to resolve', async () => {
+      // First tag (serializd) resolves; the two configured tags fail.
+      mockAxiosInstance.get.mockResolvedValue({ data: [{ id: 1, label: 'serializd' }] });
+      // getOrCreateTag for tag1/tag2 won't find them and will POST — make POST fail.
+      mockAxiosInstance.post.mockRejectedValue(new Error('cannot create'));
+      const result = await getAllRequiredTagIds();
+      expect(result).toEqual([1]);
+    });
+  });
+
+  describe('getExcludedTagIds', () => {
+    it('returns [] when EXCLUDE_TAGS is unset', async () => {
+      expect(await getExcludedTagIds()).toEqual([]);
+      expect(mockAxiosInstance.get).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getGlobalMonitorSeasons', () => {
+    it('returns [] when SONARR_MONITOR_SEASONS is unset', () => {
+      expect(getGlobalMonitorSeasons()).toEqual([]);
+    });
+  });
+
+  describe('upsertSeries guards', () => {
+    it('throws when the root folder cannot be resolved', async () => {
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: [{ id: 2, name: 'HD-1080p' }] }) // quality profile
+        .mockResolvedValueOnce({ data: [] });                            // no root folders
+      await expect(upsertSeries([mockSeries])).rejects.toThrow('Could not get Sonarr root folder');
+    });
+  });
+
+  describe('addSeries branches', () => {
+    it('skips a series with no tmdbId', async () => {
+      await addSeries({ tmdbId: 0 as any, name: 'No Id', seasons: [] }, 2, '/tv', [1]);
+      expect(mockAxiosInstance.get).not.toHaveBeenCalled();
+    });
+
+    it('logs (no post) in DRY_RUN mode', async () => {
+      const env = require('../util/env');
+      env.DRY_RUN = true;
+      mockAxiosInstance.get.mockResolvedValueOnce({ data: [lookupResult] });
+      await addSeries(mockSeries, 2, '/tv', [1]);
+      expect(mockAxiosInstance.post).not.toHaveBeenCalled();
+      env.DRY_RUN = false;
+    });
+
+    it('skips (no tag update) on "already added" when UPDATE_EXISTING_TAGS is false', async () => {
+      mockAxiosInstance.get.mockResolvedValueOnce({ data: [lookupResult] });
+      mockAxiosInstance.post.mockRejectedValueOnce({ response: { status: 400, data: 'This series has already been added' } });
+      await addSeries(mockSeries, 2, '/tv', [1]);
+      // ensureSeriesTags should NOT run → no second GET / no PUT
+      expect(mockAxiosInstance.put).not.toHaveBeenCalled();
+    });
+
+    it('logs a generic error for a non-400 failure', async () => {
+      mockAxiosInstance.get.mockResolvedValueOnce({ data: [lookupResult] });
+      mockAxiosInstance.post.mockRejectedValueOnce(new Error('network'));
+      await expect(addSeries(mockSeries, 2, '/tv', [1])).resolves.toBeUndefined();
+    });
+
+    it('adds unmonitored when SONARR_ADD_UNMONITORED is true', async () => {
+      const env = require('../util/env');
+      env.SONARR_ADD_UNMONITORED = true;
+      mockAxiosInstance.get.mockResolvedValueOnce({ data: [lookupResult] });
+      mockAxiosInstance.post.mockResolvedValueOnce({ data: { id: 1 } });
+      await addSeries(mockSeries, 2, '/tv', [1]);
+      const [, payload] = mockAxiosInstance.post.mock.calls[0];
+      expect(payload.monitored).toBe(false);
+      env.SONARR_ADD_UNMONITORED = false;
+    });
+  });
+
+  describe('getSeriesByTagIds', () => {
+    it('returns [] on error', async () => {
+      mockAxiosInstance.get.mockRejectedValueOnce(new Error('boom'));
+      expect(await getSeriesByTagIds([1])).toEqual([]);
+    });
+  });
+
+  describe('deleteSeries defaults', () => {
+    it('defaults deleteFiles=true, addImportListExclusion=false', async () => {
+      mockAxiosInstance.delete.mockResolvedValueOnce({});
+      await deleteSeries(4);
+      expect(mockAxiosInstance.delete).toHaveBeenCalledWith('/api/v3/series/4?deleteFiles=true&addImportListExclusion=false');
+    });
+  });
+
+  describe('removeTagsFromSeries', () => {
+    it('rethrows on error', async () => {
+      mockAxiosInstance.get.mockRejectedValueOnce(new Error('nope'));
+      await expect(removeTagsFromSeries({ id: 1, title: 'X', tmdbId: 1, tags: [] }, [1])).rejects.toThrow('nope');
     });
   });
 });
