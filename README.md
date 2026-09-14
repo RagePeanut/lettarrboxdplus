@@ -1,20 +1,20 @@
-# Lettarrboxd+
+# synchronizarr
 
 A fork of [Lettarrboxd](https://github.com/ryanpag3/lettarrboxd) with **bidirectional sync** and **Serializd → Sonarr** support: movies removed from your Letterboxd list are also removed from Radarr, and TV shows on your Serializd lists are synced to Sonarr the same way.
 
-## What's new vs Lettarrboxd
+## What's new vs upstream Lettarrboxd
 
 - **Serializd → Sonarr (TV shows)**: point `SERIALIZD_URL` at a Serializd watchlist or list and configure `SONARR_*`, and your tracked shows are added to Sonarr — with the same tagging, sync, and protection features as the movie side. You can run the Letterboxd→Radarr pipeline, the Serializd→Sonarr pipeline, or **both at once**.
 - **Sync mode** (`SYNC_MODE=sync`): makes your source list the single source of truth. Items added to the list are added to Radarr/Sonarr; items removed from the list are removed from Radarr/Sonarr (with optional file deletion).
 - **Removal protection** (`EXCLUDE_TAGS`): protect items carrying specific tags from sync removal — essential when running multiple sync instances (e.g. a watchlist that auto-cleans watched titles alongside a protected collection).
 - **Tag updating for existing items** (`UPDATE_EXISTING_TAGS=true`): when an item already exists in Radarr/Sonarr (e.g. added by another instance), the configured tags are applied to it instead of silently skipping. Required for sync mode to work correctly. Defaults to `false` to preserve original behavior.
-- Fully **backward-compatible**: if you only set the Letterboxd/Radarr variables and don't set `SYNC_MODE`, the behavior is identical to the original Lettarrboxd.
+- Fully **backward-compatible**: if you only set the Letterboxd/Radarr variables and don't set `SYNC_MODE`, the behavior is identical to the original upstream Lettarrboxd.
 
 ## Overview
 
-Lettarrboxd+ monitors your Letterboxd lists (watchlists, regular lists, watched movies, filmographies, collections, etc.) and syncs them with Radarr, and monitors your Serializd lists/watchlists and syncs them with Sonarr. It runs continuously, checking for updates at configurable intervals. Both pipelines share the same scheduler and sync-behavior settings.
+synchronizarr monitors your Letterboxd lists (watchlists, regular lists, watched movies, filmographies, collections, etc.) and syncs them with Radarr, and monitors your Serializd lists/watchlists and syncs them with Sonarr. It runs continuously, checking for updates at configurable intervals. Both pipelines share the same scheduler and sync-behavior settings.
 
-Serializd is a TMDB-backed TV tracking site, so a show's Serializd id is its TMDB id. Because Sonarr keys series on TVDB, Lettarrboxd+ resolves each show through Sonarr's own lookup (`/api/v3/series/lookup?term=tmdb:<id>`) before adding it, so the correct series is matched automatically.
+Serializd is a TMDB-backed TV tracking site, so a show's Serializd id is its TMDB id. Because Sonarr keys series on TVDB, synchronizarr resolves each show through Sonarr's own lookup (`/api/v3/series/lookup?term=tmdb:<id>`) before adding it, so the correct series is matched automatically.
 
 ## Supported Letterboxd URLs
 
@@ -89,26 +89,26 @@ SERIALIZD_URL=https://serializd.com/list/best-of-2024-4567
 
 ```bash
 docker run -d \
-  --name lettarrboxd \
+  --name synchronizarr \
   -e LETTERBOXD_URL=https://letterboxd.com/your_username/watchlist/ \
   -e RADARR_API_URL=http://your-radarr:7878 \
   -e RADARR_API_KEY=your_api_key \
   -e RADARR_QUALITY_PROFILE="HD-1080p" \
   -e RADARR_TAGS="watchlist,must-watch" \
   -e DRY_RUN=false \
-  ryanpage/lettarrboxd:latest
+  ragepeanut/synchronizarr:latest
 ```
 
 For testing purposes, you can enable dry run mode:
 ```bash
 docker run -d \
-  --name lettarrboxd-test \
+  --name synchronizarr-test \
   -e LETTERBOXD_URL=https://letterboxd.com/your_username/watchlist/ \
   -e RADARR_API_URL=http://your-radarr:7878 \
   -e RADARR_API_KEY=your_api_key \
   -e RADARR_QUALITY_PROFILE="HD-1080p" \
   -e DRY_RUN=true \
-  ryanpage/lettarrboxd:latest
+  ragepeanut/synchronizarr:latest
 ```
 See [docker-compose.yaml](./docker-compose.yaml) for complete example.
 
@@ -118,23 +118,23 @@ Run the TV pipeline on its own:
 
 ```bash
 docker run -d \
-  --name lettarrboxd-tv \
+  --name synchronizarr-tv \
   -e SERIALIZD_URL=https://serializd.com/user/your_username/watchlist \
   -e SONARR_API_URL=http://your-sonarr:8989 \
   -e SONARR_API_KEY=your_api_key \
   -e SONARR_QUALITY_PROFILE="HD-1080p" \
   -e SONARR_TAGS="serializd-watchlist" \
   -e DRY_RUN=false \
-  ryanpage/lettarrboxd:latest
+  ragepeanut/synchronizarr:latest
 ```
 
 Or run **both** pipelines in a single instance by providing the Letterboxd/Radarr **and** Serializd/Sonarr variables together:
 
 ```yaml
 services:
-  lettarrboxd:
-    image: ryanpage/lettarrboxd:latest
-    container_name: lettarrboxd
+  synchronizarr:
+    image: ragepeanut/synchronizarr:latest
+    container_name: synchronizarr
     environment:
       # Movies
       - LETTERBOXD_URL=https://letterboxd.com/your_username/watchlist/
@@ -157,7 +157,7 @@ services:
 
 ## Watching Multiple Lists
 
-To monitor multiple Letterboxd lists simultaneously, deploy one lettarrboxd instance per list. Each instance operates independently with its own configuration, allowing you to:
+To monitor multiple Letterboxd lists simultaneously, deploy one synchronizarr instance per list. Each instance operates independently with its own configuration, allowing you to:
 
 - Watch different lists with different quality profiles
 - Use custom tags to organize movies from different sources
@@ -168,9 +168,9 @@ To monitor multiple Letterboxd lists simultaneously, deploy one lettarrboxd inst
 
 ```yaml
 services:
-  lettarrboxd-watchlist:
-    image: ryanpage/lettarrboxd:latest
-    container_name: lettarrboxd-watchlist
+  synchronizarr-watchlist:
+    image: ragepeanut/synchronizarr:latest
+    container_name: synchronizarr-watchlist
     environment:
       - LETTERBOXD_URL=https://letterboxd.com/your_username/watchlist/
       - RADARR_API_URL=http://radarr:7878
@@ -182,9 +182,9 @@ services:
       - ./data/watchlist:/data
     restart: unless-stopped
 
-  lettarrboxd-criterion:
-    image: ryanpage/lettarrboxd:latest
-    container_name: lettarrboxd-criterion
+  synchronizarr-criterion:
+    image: ragepeanut/synchronizarr:latest
+    container_name: synchronizarr-criterion
     environment:
       - LETTERBOXD_URL=https://letterboxd.com/criterion/list/the-criterion-collection/
       - RADARR_API_URL=http://radarr:7878
@@ -196,9 +196,9 @@ services:
       - ./data/criterion:/data
     restart: unless-stopped
 
-  lettarrboxd-nolan:
-    image: ryanpage/lettarrboxd:latest
-    container_name: lettarrboxd-nolan
+  synchronizarr-nolan:
+    image: ragepeanut/synchronizarr:latest
+    container_name: synchronizarr-nolan
     environment:
       - LETTERBOXD_URL=https://letterboxd.com/director/christopher-nolan/
       - RADARR_API_URL=http://radarr:7878
@@ -216,7 +216,7 @@ services:
 ```bash
 # Watch your personal watchlist
 docker run -d \
-  --name lettarrboxd-watchlist \
+  --name synchronizarr-watchlist \
   -e LETTERBOXD_URL=https://letterboxd.com/your_username/watchlist/ \
   -e RADARR_API_URL=http://radarr:7878 \
   -e RADARR_API_KEY=your_api_key \
@@ -224,11 +224,11 @@ docker run -d \
   -e RADARR_TAGS="watchlist,personal" \
   -e CHECK_INTERVAL_MINUTES=60 \
   -v ./data/watchlist:/data \
-  ryanpage/lettarrboxd:latest
+  ragepeanut/synchronizarr:latest
 
 # Watch the Criterion Collection
 docker run -d \
-  --name lettarrboxd-criterion \
+  --name synchronizarr-criterion \
   -e LETTERBOXD_URL=https://letterboxd.com/criterion/list/the-criterion-collection/ \
   -e RADARR_API_URL=http://radarr:7878 \
   -e RADARR_API_KEY=your_api_key \
@@ -236,11 +236,11 @@ docker run -d \
   -e RADARR_TAGS="criterion,classics" \
   -e CHECK_INTERVAL_MINUTES=120 \
   -v ./data/criterion:/data \
-  ryanpage/lettarrboxd:latest
+  ragepeanut/synchronizarr:latest
 
 # Watch Christopher Nolan's filmography
 docker run -d \
-  --name lettarrboxd-nolan \
+  --name synchronizarr-nolan \
   -e LETTERBOXD_URL=https://letterboxd.com/director/christopher-nolan/ \
   -e RADARR_API_URL=http://radarr:7878 \
   -e RADARR_API_KEY=your_api_key \
@@ -248,12 +248,12 @@ docker run -d \
   -e RADARR_TAGS="nolan,director-filmography" \
   -e CHECK_INTERVAL_MINUTES=1440 \
   -v ./data/nolan:/data \
-  ryanpage/lettarrboxd:latest
+  ragepeanut/synchronizarr:latest
 ```
 
 ### Best Practices for Multi-List Setup
 
-1. **Unique Container Names**: Each instance must have a unique container name (e.g., `lettarrboxd-watchlist`, `lettarrboxd-criterion`)
+1. **Unique Container Names**: Each instance must have a unique container name (e.g., `synchronizarr-watchlist`, `synchronizarr-criterion`)
 
 2. **Separate Data Directories**: Use different volume mounts for each instance to maintain independent state tracking:
    ```yaml
@@ -338,7 +338,7 @@ These apply to whichever pipeline(s) you enable:
 | `SYNC_MODE` | `add` | `add` (default): only add items. `sync`: bidirectional — also remove items from Radarr/Sonarr when they are removed from the source list |
 | `DELETE_FILES` | `true` | When removing items in sync mode, also delete the files from disk |
 | `ADD_IMPORT_EXCLUSION` | `false` | When removing items in sync mode, add an import exclusion to prevent Radarr/Sonarr from re-adding the item |
-| `UPDATE_EXISTING_TAGS` | `false` | When `true`, update tags on items that already exist in Radarr/Sonarr. Required for `SYNC_MODE=sync` to work correctly. When `false` (default), existing items are silently skipped (original Lettarrboxd behavior) |
+| `UPDATE_EXISTING_TAGS` | `false` | When `true`, update tags on items that already exist in Radarr/Sonarr. Required for `SYNC_MODE=sync` to work correctly. When `false` (default), existing items are silently skipped (original upstream behavior) |
 | `EXCLUDE_TAGS` | - | Comma-separated tag names that protect items from **deletion** in sync mode. When an item leaves this list but carries an excluded tag, it is **not deleted** — instead this instance's own tags are stripped from it (the item is kept, owned by whatever gave it the excluded tag). Useful when running multiple sync instances (e.g. a watchlist and a collection) |
 
 ## Sync Mode (Bidirectional)
@@ -355,14 +355,14 @@ This is ideal for curated collections — add a movie to your Letterboxd list an
 
 - Removal only targets movies with **all** your configured tags. Movies added by other instances (with different tags) are never touched.
 - `DELETE_FILES=true` (default): files are deleted from disk, freeing space. Plex reflects the removal automatically.
-- `ADD_IMPORT_EXCLUSION=false` (default): the movie can be re-added later (e.g. by another Lettarrboxd instance monitoring your watchlist). Set to `true` if you want removal to be permanent.
+- `ADD_IMPORT_EXCLUSION=false` (default): the movie can be re-added later (e.g. by another synchronizarr instance monitoring your watchlist). Set to `true` if you want removal to be permanent.
 - Respects `DRY_RUN`: when enabled, removals are logged but not executed.
 
 ### Tag updating for existing movies
 
-When a movie on the Letterboxd list **already exists** in Radarr (e.g. added by a different instance), the original Lettarrboxd silently skips it without applying tags. When `UPDATE_EXISTING_TAGS=true`, Lettarrboxd+ instead **updates the existing movie's tags** to include the configured tags. This ensures the sync-mode removal logic can correctly identify which movies belong to which list.
+When a movie on the Letterboxd list **already exists** in Radarr (e.g. added by a different instance), the original upstream Lettarrboxd silently skips it without applying tags. When `UPDATE_EXISTING_TAGS=true`, synchronizarr instead **updates the existing movie's tags** to include the configured tags. This ensures the sync-mode removal logic can correctly identify which movies belong to which list.
 
-> **Note:** `UPDATE_EXISTING_TAGS` defaults to `false` to preserve the original Lettarrboxd behavior. If you use `SYNC_MODE=sync`, you should set `UPDATE_EXISTING_TAGS=true` — otherwise movies that already exist in Radarr won't get the tags needed for sync removal to work.
+> **Note:** `UPDATE_EXISTING_TAGS` defaults to `false` to preserve the original upstream behavior. If you use `SYNC_MODE=sync`, you should set `UPDATE_EXISTING_TAGS=true` — otherwise movies that already exist in Radarr won't get the tags needed for sync removal to work.
 
 ### Protecting movies from removal (`EXCLUDE_TAGS`)
 
@@ -374,9 +374,9 @@ Letterboxd automatically removes a film from your watchlist once you log it as w
 
 ```yaml
   # Watchlist: adds films you want; removes them once watched (dropped from watchlist)
-  lettarrboxdplus-watchlist:
-    build: ./lettarrboxdplus
-    container_name: lettarrboxdplus-watchlist
+  synchronizarr-watchlist:
+    build: ./synchronizarr
+    container_name: synchronizarr-watchlist
     environment:
       - LETTERBOXD_URL=https://letterboxd.com/your_username/watchlist/
       - RADARR_API_URL=http://radarr:7878
@@ -392,9 +392,9 @@ Letterboxd automatically removes a film from your watchlist once you log it as w
     restart: unless-stopped
 
   # Digital Collection: your permanent keepers, tagged `collection`
-  lettarrboxdplus-collection:
-    build: ./lettarrboxdplus
-    container_name: lettarrboxdplus-collection
+  synchronizarr-collection:
+    build: ./synchronizarr
+    container_name: synchronizarr-collection
     environment:
       - LETTERBOXD_URL=https://letterboxd.com/your_username/list/digital-collection/
       - RADARR_API_URL=http://radarr:7878
@@ -426,9 +426,9 @@ Because protection *untags* rather than *skips*, a movie removed from every list
 Use a dedicated Letterboxd list as your "permanent collection" — movies you want to keep on disk:
 
 ```yaml
-  lettarrboxdplus-collection:
-    build: ./lettarrboxdplus
-    container_name: lettarrboxdplus-collection
+  synchronizarr-collection:
+    build: ./synchronizarr
+    container_name: synchronizarr-collection
     environment:
       - LETTERBOXD_URL=https://letterboxd.com/your_username/list/digital-collection/
       - RADARR_API_URL=http://radarr:7878
@@ -461,8 +461,8 @@ Use a dedicated Letterboxd list as your "permanent collection" — movies you wa
 
 ```bash
 # Clone the repository
-git clone https://github.com/ryanpag3/lettarrboxd.git
-cd lettarrboxd
+git clone https://github.com/RagePeanut/synchronizarr.git
+cd synchronizarr
 
 # Install dependencies
 yarn install
@@ -509,7 +509,7 @@ When `NODE_ENV=development`, the application:
 
 **Docker container won't start**
 - Verify all required environment variables are set
-- Check container logs: `docker logs lettarrboxd`
+- Check container logs: `docker logs synchronizarr`
 
 ## License
 
@@ -517,4 +517,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Legal Disclaimer
 
-This project is intended for use with legally sourced media only. It is designed to help users organize and manage their personal media collections. The developers of Lettarrboxd do not condone or support piracy in any form. Users are solely responsible for ensuring their use of this software complies with all applicable laws and regulations in their jurisdiction.
+This project is intended for use with legally sourced media only. It is designed to help users organize and manage their personal media collections. The developers of synchronizarr do not condone or support piracy in any form. Users are solely responsible for ensuring their use of this software complies with all applicable laws and regulations in their jurisdiction.

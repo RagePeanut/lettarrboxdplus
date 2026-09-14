@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Lettarrboxd is a TypeScript Node.js application that automatically syncs Letterboxd watchlist movies to Radarr. It continuously monitors a user's Letterboxd watchlist for new additions and automatically adds them to Radarr for download management.
+synchronizarr is a TypeScript Node.js application that automatically syncs Letterboxd watchlist movies to Radarr (and Serializd TV shows to Sonarr). It continuously monitors a user's Letterboxd watchlist for new additions and automatically adds them to Radarr for download management.
 
 ## Commands
 
@@ -16,8 +16,8 @@ Lettarrboxd is a TypeScript Node.js application that automatically syncs Letterb
 - `yarn tsc --noEmit` - Type check without emitting files
 
 ### Docker
-- `docker build -t lettarrboxd .` - Build Docker image
-- `docker run -d --env-file .env -v ./data:/data lettarrboxd` - Run container
+- `docker build -t synchronizarr .` - Build Docker image
+- `docker run -d --env-file .env -v ./data:/data synchronizarr` - Run container
 
 ## Environment Configuration
 
