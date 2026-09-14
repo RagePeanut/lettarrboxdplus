@@ -85,6 +85,19 @@ SERIALIZD_URL=https://serializd.com/list/best-of-2024-4567
 
 ## Quick Start
 
+### Prebuilt image (GitHub Container Registry)
+
+Prebuilt multi-arch images (`linux/amd64` + `linux/arm64`) are published automatically to the [GitHub Container Registry](https://ghcr.io) by CI — no Docker Hub account or manual build required. Just pull:
+
+```bash
+docker pull ghcr.io/ragepeanut/synchronizarr:latest
+```
+
+- `:latest` — tracks the newest code merged to `main` (refreshed on every push to `main`).
+- `vX.Y.Z` / `vX.Y` / `vX` — published on each GitHub release.
+
+> The image is private until you make it public: on GitHub go to your profile → **Packages** → `synchronizarr` → **Package settings** → set visibility to **Public**. If you'd rather keep it private, run `docker login ghcr.io -u <your-username>` on your host once, using a personal access token with the `read:packages` scope.
+
 ### Docker
 
 ```bash

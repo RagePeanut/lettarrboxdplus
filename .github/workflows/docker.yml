@@ -40,8 +40,9 @@ jobs:
             type=semver,pattern=v{{version}},enable=${{ github.event_name == 'release' }}
             type=semver,pattern=v{{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
             type=semver,pattern=v{{major}},enable=${{ github.event_name == 'release' }}
-            type=raw,value=staging,enable=${{ github.ref == 'refs/heads/main' }}
-            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
+            # Every push to main refreshes :latest, so `docker pull ...:latest`
+            # always gives you the newest merged code — no formal release needed.
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
